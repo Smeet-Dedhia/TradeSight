@@ -1,4 +1,3 @@
-import pyotp
 import requests
 import json
 import time
@@ -6,63 +5,50 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import pandas as pd
 
-from config import BrokerConfig, ZerodhaConfig
+from config import BrokerConfig, ICICIConfig
 
 
-class ZerodhaClient:
-    """Client for interacting with Zerodha Kite API"""
+class ICICIClient:
+    """Client for interacting with ICICI Direct (Breeze) API"""
     
     def __init__(self, account_config: BrokerConfig):
-        """Initialize Zerodha client"""
+        """Initialize ICICI Direct client"""
         self.account_name = account_config.name
         self.api_key = account_config.api_key
         self.api_secret = account_config.api_secret
         self.totp_secret = account_config.totp_secret
-        self.base_url = ZerodhaConfig.BASE_URL
+        self.base_url = ICICIConfig.BASE_URL
         self.session = requests.Session()
         self.access_token = None
         self.user_id = None
         self.login_time = None
         
-    def generate_totp(self) -> str:
-        """Generate TOTP for 2FA authentication"""
-        if not self.totp_secret:
-            raise ValueError("TOTP secret not configured")
-        
-        totp = pyotp.TOTP(self.totp_secret)
-        return totp.now()
-    
     def login(self, user_id: str, password: str, pin: str) -> bool:
         """
-        Login to Zerodha using user credentials
+        Login to ICICI Direct using user credentials
         
         Args:
-            user_id: Zerodha user ID
-            password: Zerodha password
-            pin: Zerodha PIN
+            user_id: ICICI Direct user ID
+            password: ICICI Direct password
+            pin: ICICI Direct PIN
             
         Returns:
             bool: True if login successful, False otherwise
         """
         try:
-            # Step 1: Get login URL
-            login_url = f"{ZerodhaConfig.LOGIN_URL}?api_key={self.api_key}&v=3"
-            
-            # Step 2: Generate TOTP
-            totp = self.generate_totp()
-            
-            # Step 3: Make login request
+            # ICICI Direct login process
             login_data = {
                 "user_id": user_id,
                 "password": password,
                 "pin": pin,
-                "totp": totp
+                "api_key": self.api_key,
+                "api_secret": self.api_secret
             }
             
             response = self.session.post(
-                f"{self.base_url}/session/token",
-                data=login_data,
-                headers={"X-KiteConnect-APIKey": self.api_key}
+                f"{self.base_url}/auth/login",
+                json=login_data,
+                headers={"Content-Type": "application/json"}
             )
             
             if response.status_code == 200:
@@ -73,24 +59,24 @@ class ZerodhaClient:
                     self.login_time = datetime.now()
                     return True
                 else:
-                    print(f"Zerodha login failed for {self.account_name}: {data.get('message', 'Unknown error')}")
+                    print(f"ICICI Direct login failed: {data.get('message', 'Unknown error')}")
                     return False
             else:
-                print(f"Zerodha login request failed for {self.account_name} with status code: {response.status_code}")
+                print(f"ICICI Direct login request failed with status code: {response.status_code}")
                 return False
                 
         except Exception as e:
-            print(f"Error during Zerodha login for {self.account_name}: {str(e)}")
+            print(f"Error during ICICI Direct login: {str(e)}")
             return False
     
     def _make_request(self, endpoint: str, method: str = "GET", params: Dict = None, data: Dict = None) -> Optional[Dict]:
-        """Make authenticated request to Zerodha API"""
+        """Make authenticated request to ICICI Direct API"""
         if not self.access_token:
             raise ValueError("Not authenticated. Please login first.")
         
         headers = {
-            "X-KiteConnect-APIKey": self.api_key,
-            "Authorization": f"token {self.api_key}:{self.access_token}"
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
         }
         
         url = f"{self.base_url}{endpoint}"
@@ -106,23 +92,23 @@ class ZerodhaClient:
             if response.status_code == 200:
                 return response.json()
             else:
-                print(f"Zerodha API request failed for {self.account_name} with status code: {response.status_code}")
+                print(f"ICICI Direct API request failed with status code: {response.status_code}")
                 print(f"Response: {response.text}")
                 return None
                 
         except Exception as e:
-            print(f"Error making Zerodha API request for {self.account_name}: {str(e)}")
+            print(f"Error making ICICI Direct API request: {str(e)}")
             return None
     
     def get_portfolio(self) -> Optional[Dict]:
-        """Fetch current portfolio holdings"""
+        """Fetch current portfolio holdings from ICICI Direct"""
         try:
-            response = self._make_request("/portfolio/positions")
+            response = self._make_request("/portfolio/holdings")
             if response and response.get("status") == "success":
                 return response["data"]
             return None
         except Exception as e:
-            print(f"Error fetching Zerodha portfolio for {self.account_name}: {str(e)}")
+            print(f"Error fetching ICICI Direct portfolio: {str(e)}")
             return None
     
     def get_portfolio_holdings(self) -> Optional[List[Dict]]:
@@ -133,23 +119,23 @@ class ZerodhaClient:
         
         holdings = []
         
-        # Process net positions (current holdings)
-        if "net" in portfolio:
-            for position in portfolio["net"]:
-                if float(position.get("quantity", 0)) > 0:  # Only positive holdings
-                    holding = {
-                        "symbol": position.get("tradingsymbol"),
-                        "quantity": float(position.get("quantity", 0)),
-                        "average_price": float(position.get("average_price", 0)),
-                        "last_price": float(position.get("last_price", 0)),
-                        "pnl": float(position.get("pnl", 0)),
-                        "market_value": float(position.get("market_value", 0)),
-                        "instrument_token": position.get("instrument_token"),
-                        "exchange": position.get("exchange"),
+        # Process holdings data (structure may vary based on ICICI Direct API)
+        if "holdings" in portfolio:
+            for holding in portfolio["holdings"]:
+                if float(holding.get("quantity", 0)) > 0:  # Only positive holdings
+                    holding_data = {
+                        "symbol": holding.get("symbol") or holding.get("tradingsymbol"),
+                        "quantity": float(holding.get("quantity", 0)),
+                        "average_price": float(holding.get("average_price", 0)),
+                        "last_price": float(holding.get("last_price", 0)),
+                        "pnl": float(holding.get("pnl", 0)),
+                        "market_value": float(holding.get("market_value", 0)),
+                        "instrument_token": holding.get("instrument_token"),
+                        "exchange": holding.get("exchange", "NSE"),
                         "account_name": self.account_name,
-                        "broker": "Zerodha"
+                        "broker": "ICICI Direct"
                     }
-                    holdings.append(holding)
+                    holdings.append(holding_data)
         
         return holdings
     
@@ -165,7 +151,7 @@ class ZerodhaClient:
         
         return {
             "account_name": self.account_name,
-            "broker": "Zerodha",
+            "broker": "ICICI Direct",
             "total_holdings": len(holdings),
             "total_investment": total_investment,
             "total_market_value": total_market_value,
@@ -197,13 +183,13 @@ class ZerodhaClient:
         
         # Check if session has expired
         elapsed_time = datetime.now() - self.login_time
-        return elapsed_time.total_seconds() < ZerodhaConfig.SESSION_TIMEOUT
+        return elapsed_time.total_seconds() < ICICIConfig.SESSION_TIMEOUT
     
     def logout(self):
         """Logout and clear session"""
         try:
             if self.access_token:
-                self._make_request("/session/token", method="DELETE")
+                self._make_request("/auth/logout", method="POST")
         except:
             pass  # Ignore logout errors
         

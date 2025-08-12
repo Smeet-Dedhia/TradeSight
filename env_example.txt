@@ -1,14 +1,64 @@
-# Zerodha API Credentials
+# Multi-Broker API Credentials
 # Copy this file to .env and fill in your actual credentials
 
-# Your Zerodha API Key (get this from Zerodha developer console)
-ZERODHA_API_KEY=your_api_key_here
+# ============================================================================
+# ZERODHA ACCOUNTS (up to 4 accounts)
+# ============================================================================
 
-# Your Zerodha API Secret (get this from Zerodha developer console)
-ZERODHA_API_SECRET=your_api_secret_here
+# Zerodha Account 1
+ZERODHA_1_API_KEY=your_zerodha_api_key_1
+ZERODHA_1_API_SECRET=your_zerodha_api_secret_1
+ZERODHA_1_TOTP_SECRET=your_zerodha_totp_secret_1
+ZERODHA_1_ACCOUNT_NAME=Zerodha Account 1
 
-# Your TOTP Secret for 2FA (if using TOTP authentication)
-ZERODHA_TOTP_SECRET=your_totp_secret_here
+# Zerodha Account 2
+ZERODHA_2_API_KEY=your_zerodha_api_key_2
+ZERODHA_2_API_SECRET=your_zerodha_api_secret_2
+ZERODHA_2_TOTP_SECRET=your_zerodha_totp_secret_2
+ZERODHA_2_ACCOUNT_NAME=Zerodha Account 2
 
-# Optional: Custom session timeout (in seconds)
-# SESSION_TIMEOUT=3600 
+# Zerodha Account 3
+ZERODHA_3_API_KEY=your_zerodha_api_key_3
+ZERODHA_3_API_SECRET=your_zerodha_api_secret_3
+ZERODHA_3_TOTP_SECRET=your_zerodha_totp_secret_3
+ZERODHA_3_ACCOUNT_NAME=Zerodha Account 3
+
+# Zerodha Account 4
+ZERODHA_4_API_KEY=your_zerodha_api_key_4
+ZERODHA_4_API_SECRET=your_zerodha_api_secret_4
+ZERODHA_4_TOTP_SECRET=your_zerodha_totp_secret_4
+ZERODHA_4_ACCOUNT_NAME=Zerodha Account 4
+
+# ============================================================================
+# ICICI DIRECT ACCOUNTS (up to 2 accounts)
+# ============================================================================
+
+# ICICI Direct Account 1
+ICICI_1_API_KEY=your_icici_api_key_1
+ICICI_1_API_SECRET=your_icici_api_secret_1
+ICICI_1_TOTP_SECRET=your_icici_totp_secret_1
+ICICI_1_ACCOUNT_NAME=ICICI Direct Account 1
+
+# ICICI Direct Account 2
+ICICI_2_API_KEY=your_icici_api_key_2
+ICICI_2_API_SECRET=your_icici_api_secret_2
+ICICI_2_TOTP_SECRET=your_icici_totp_secret_2
+ICICI_2_ACCOUNT_NAME=ICICI Direct Account 2
+
+# ============================================================================
+# OPTIONAL SETTINGS
+# ============================================================================
+
+# Custom session timeout (in seconds) - defaults to 3600 (1 hour)
+# SESSION_TIMEOUT=3600
+
+# ============================================================================
+# NOTES:
+# ============================================================================
+# 1. You don't need to configure all accounts - only the ones you want to use
+# 2. Account names are optional - they will default to "Zerodha Account X" etc.
+# 3. TOTP secrets are required for Zerodha accounts, optional for ICICI Direct
+# 4. Get API keys from:
+#    - Zerodha: https://developers.kite.trade/
+#    - ICICI Direct: Contact your relationship manager
+# 5. Never commit this .env file to version control 

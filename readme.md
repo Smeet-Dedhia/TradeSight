@@ -1,34 +1,40 @@
 # TradeSight 📈
 
-A comprehensive portfolio tracking and analysis tool for Zerodha users, built with Python and data science capabilities.
+A comprehensive **multi-broker** portfolio tracking and analysis tool for Indian traders, built with Python and data science capabilities. Supports multiple Zerodha and ICICI Direct accounts with consolidated portfolio analysis.
 
 ## Features ✨
 
-- **Portfolio Tracking**: Fetch real-time portfolio data from Zerodha
+- **Multi-Broker Support**: Manage up to 4 Zerodha + 2 ICICI Direct accounts
+- **Consolidated Portfolio**: Unified view across all broker accounts
+- **Portfolio Tracking**: Real-time portfolio data from multiple brokers
 - **Data Analysis**: Comprehensive portfolio analysis with risk metrics
 - **Watchlist Generation**: Create watchlists based on various criteria
 - **Visualization**: Interactive charts and portfolio distribution analysis
 - **Export Capabilities**: Export data in CSV, Excel, and JSON formats
 - **Alert System**: Portfolio alerts for significant movements and risks
 - **Performance Metrics**: Detailed performance analysis and tracking
+- **Broker Comparison**: Compare performance across different brokers
 
 ## Project Structure 📁
 
 ```
 TradeSight/
-├── config.py              # Configuration and environment variables
-├── zerodha_client.py      # Zerodha API client implementation
-├── portfolio_manager.py   # Portfolio analysis and management
-├── example_usage.py       # Example usage and demo script
-├── requirements.txt       # Python dependencies
-├── env_example.txt        # Environment variables template
-└── README.md             # This file
+├── config.py                    # Multi-broker configuration management
+├── zerodha_client.py            # Zerodha API client (multi-account)
+├── icici_client.py              # ICICI Direct (Breeze) API client
+├── multi_broker_manager.py      # Multi-broker portfolio manager
+├── portfolio_manager.py         # Single broker portfolio analysis
+├── multi_broker_example.py      # Multi-broker demo script
+├── example_usage.py             # Single broker demo script
+├── requirements.txt             # Python dependencies
+├── env_example.txt              # Environment variables template
+└── README.md                    # This file
 ```
 
 ## Prerequisites 🔑
 
-1. **Zerodha Account**: Active Zerodha trading account
-2. **API Access**: Zerodha API key and secret from [Zerodha Developer Console](https://developers.kite.trade/)
+1. **Broker Accounts**: Active Zerodha and/or ICICI Direct trading accounts
+2. **API Access**: API keys and secrets from broker developer consoles
 3. **TOTP Setup**: 2FA authentication setup (recommended)
 4. **Python 3.8+**: Python 3.8 or higher installed
 
@@ -51,43 +57,95 @@ Copy the example environment file and fill in your credentials:
 cp env_example.txt .env
 ```
 
-Edit `.env` file with your actual Zerodha credentials:
+Edit `.env` file with your actual broker credentials:
+
+#### For Zerodha Accounts (up to 4):
 ```env
-ZERODHA_API_KEY=your_actual_api_key
-ZERODHA_API_SECRET=your_actual_api_secret
-ZERODHA_TOTP_SECRET=your_actual_totp_secret
+# Zerodha Account 1
+ZERODHA_1_API_KEY=your_api_key_1
+ZERODHA_1_API_SECRET=your_api_secret_1
+ZERODHA_1_TOTP_SECRET=your_totp_secret_1
+ZERODHA_1_ACCOUNT_NAME=Zerodha Account 1
+
+# Zerodha Account 2
+ZERODHA_2_API_KEY=your_api_key_2
+ZERODHA_2_API_SECRET=your_api_secret_2
+ZERODHA_2_TOTP_SECRET=your_totp_secret_2
+ZERODHA_2_ACCOUNT_NAME=Zerodha Account 2
+```
+
+#### For ICICI Direct Accounts (up to 2):
+```env
+# ICICI Direct Account 1
+ICICI_1_API_KEY=your_api_key_1
+ICICI_1_API_SECRET=your_api_secret_1
+ICICI_1_TOTP_SECRET=your_totp_secret_1
+ICICI_1_ACCOUNT_NAME=ICICI Direct Account 1
 ```
 
 ## Usage 💻
 
-### Basic Portfolio Fetching
+### Multi-Broker Portfolio Management
+```python
+from multi_broker_manager import MultiBrokerManager
+
+# Initialize multi-broker manager
+manager = MultiBrokerManager()
+manager.initialize_brokers()
+
+# Login to all accounts
+credentials = {
+    "Zerodha Account 1": {"user_id": "user1", "password": "pass1", "pin": "1234"},
+    "ICICI Direct Account 1": {"user_id": "user2", "password": "pass2", "pin": "5678"}
+}
+manager.login_all_accounts(credentials)
+
+# Get consolidated portfolio overview
+overview = manager.get_consolidated_overview()
+print(overview)
+```
+
+### Single Broker Usage (Legacy)
 ```python
 from zerodha_client import ZerodhaClient
 from portfolio_manager import PortfolioManager
 
-# Initialize client
-client = ZerodhaClient()
-
-# Login (you'll be prompted for credentials)
+# Initialize client for specific account
+client = ZerodhaClient(account_config)
 if client.login(user_id, password, pin):
-    # Initialize portfolio manager
     portfolio_mgr = PortfolioManager(client)
-    
-    # Get portfolio overview
     overview = portfolio_mgr.get_portfolio_overview()
-    print(overview)
 ```
 
-### Run the Example Script
+### Run the Multi-Broker Demo
+```bash
+python multi_broker_example.py
+```
+
+### Run the Single Broker Demo
 ```bash
 python example_usage.py
 ```
 
 ## API Reference 📚
 
+### MultiBrokerManager
+
+Main manager for handling multiple broker accounts.
+
+#### Methods:
+- `initialize_brokers()`: Initialize all broker clients
+- `login_all_accounts(credentials)`: Login to all accounts
+- `fetch_all_portfolios()`: Fetch data from all accounts
+- `get_consolidated_overview()`: Get unified portfolio analysis
+- `generate_consolidated_watchlist(criteria, limit)`: Generate watchlists
+- `plot_consolidated_portfolio()`: Create comprehensive charts
+- `export_consolidated_portfolio(format, filepath)`: Export data
+- `get_consolidated_alerts()`: Get alerts from all portfolios
+
 ### ZerodhaClient
 
-Main client for interacting with Zerodha API.
+Client for interacting with Zerodha API (multi-account support).
 
 #### Methods:
 - `login(user_id, password, pin)`: Authenticate with Zerodha
@@ -95,63 +153,78 @@ Main client for interacting with Zerodha API.
 - `get_portfolio_holdings()`: Get simplified holdings data
 - `get_portfolio_summary()`: Get portfolio summary statistics
 - `get_portfolio_as_dataframe()`: Get holdings as pandas DataFrame
-- `logout()`: Clear session and logout
 
-### PortfolioManager
+### ICICIClient
 
-High-level portfolio analysis and management.
+Client for interacting with ICICI Direct (Breeze) API.
 
 #### Methods:
-- `get_portfolio_overview()`: Comprehensive portfolio analysis
-- `generate_watchlist(criteria, limit)`: Generate watchlists
-- `plot_portfolio_distribution()`: Create portfolio charts
-- `export_portfolio(format, filepath)`: Export data to files
-- `get_portfolio_alerts()`: Get portfolio alerts and notifications
+- `login(user_id, password, pin)`: Authenticate with ICICI Direct
+- `get_portfolio()`: Fetch portfolio data
+- `get_portfolio_holdings()`: Get simplified holdings data
+- `get_portfolio_summary()`: Get portfolio summary statistics
+- `get_portfolio_as_dataframe()`: Get holdings as pandas DataFrame
 
-#### Watchlist Criteria:
-- `"top_gainers"`: Stocks with highest returns
-- `"top_losers"`: Stocks with lowest returns
-- `"highest_value"`: Stocks with highest market value
-- `"highest_volume"`: Stocks with highest quantity
+## Multi-Broker Features 🏛️
+
+### Account Management
+- **Up to 4 Zerodha accounts** with unique naming
+- **Up to 2 ICICI Direct accounts** with unique naming
+- **Flexible configuration** - only configure accounts you need
+- **Account-specific credentials** and session management
+
+### Consolidated Analysis
+- **Unified portfolio view** across all brokers
+- **Broker-wise breakdown** and comparison
+- **Account performance tracking** and ranking
+- **Cross-account risk assessment**
+
+### Advanced Analytics
+- **Consolidated risk metrics** (Herfindahl index, concentration risk)
+- **Performance comparison** across accounts and brokers
+- **Unified watchlist generation** from all portfolios
+- **Multi-account alerts** and notifications
 
 ## Security 🔒
 
 - **Environment Variables**: Never commit `.env` file to version control
 - **API Credentials**: Keep your API keys and secrets secure
-- **Session Management**: Automatic session timeout and cleanup
+- **Session Management**: Automatic session timeout and cleanup for each account
 - **Rate Limiting**: Built-in rate limiting for API calls
+- **Secure Authentication**: 2FA support for enhanced security
 
 ## Data Science Capabilities 📊
 
-- **Portfolio Analysis**: Risk metrics, concentration analysis, performance tracking
-- **Statistical Analysis**: Returns distribution, correlation analysis
-- **Visualization**: Matplotlib, Seaborn, and Plotly charts
+- **Multi-Account Analysis**: Risk metrics, concentration analysis, performance tracking
+- **Statistical Analysis**: Returns distribution, correlation analysis across accounts
+- **Visualization**: Matplotlib, Seaborn, and Plotly charts with broker breakdown
 - **Data Export**: Multiple format support for further analysis
-- **Risk Assessment**: Herfindahl index, portfolio volatility
+- **Risk Assessment**: Consolidated Herfindahl index, portfolio volatility
 
 ## Troubleshooting 🛠️
 
 ### Common Issues:
 
 1. **Authentication Failed**
-   - Verify API key and secret
+   - Verify API key and secret for each account
    - Check TOTP secret configuration
-   - Ensure account is active
+   - Ensure accounts are active
 
 2. **Portfolio Data Not Loading**
    - Check internet connection
-   - Verify session is valid
+   - Verify session validity for each account
    - Check API rate limits
 
-3. **Import Errors**
-   - Ensure all dependencies are installed
-   - Check Python version compatibility
-   - Verify file paths
+3. **Configuration Errors**
+   - Ensure environment variables are properly set
+   - Check account naming conventions
+   - Verify broker-specific requirements
 
 ### Getting Help:
-- Check Zerodha API documentation
+- Check broker API documentation
 - Verify your API permissions
 - Check network connectivity
+- Review environment variable configuration
 
 ## Contributing 🤝
 
@@ -173,9 +246,10 @@ This tool is for educational and personal use only. Trading involves risk, and p
 
 For issues and questions:
 - Check the troubleshooting section
-- Review Zerodha API documentation
+- Review broker API documentation
+- Verify your API permissions
 - Open an issue in the repository
 
 ---
 
-**Happy Trading! 📈💰**
+**Happy Multi-Broker Trading! 📈💰🏛️**
