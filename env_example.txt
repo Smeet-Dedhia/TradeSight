@@ -1,0 +1,14 @@
+# Zerodha API Credentials
+# Copy this file to .env and fill in your actual credentials
+
+# Your Zerodha API Key (get this from Zerodha developer console)
+ZERODHA_API_KEY=your_api_key_here
+
+# Your Zerodha API Secret (get this from Zerodha developer console)
+ZERODHA_API_SECRET=your_api_secret_here
+
+# Your TOTP Secret for 2FA (if using TOTP authentication)
+ZERODHA_TOTP_SECRET=your_totp_secret_here
+
+# Optional: Custom session timeout (in seconds)
+# SESSION_TIMEOUT=3600 
