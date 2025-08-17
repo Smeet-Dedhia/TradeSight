@@ -6,13 +6,12 @@ from typing import Dict, List
 load_dotenv()
 
 class BrokerConfig:
-    """Base configuration class for brokers"""
+    """Configuration class for broker accounts"""
     
-    def __init__(self, name: str, api_key: str, api_secret: str, totp_secret: str = None):
+    def __init__(self, name: str, api_key: str, api_secret: str):
         self.name = name
         self.api_key = api_key
         self.api_secret = api_secret
-        self.totp_secret = totp_secret
 
 class ZerodhaConfig:
     """Configuration class for Zerodha API"""
@@ -21,8 +20,8 @@ class ZerodhaConfig:
     BASE_URL = "https://api.kite.trade"
     LOGIN_URL = "https://kite.trade/connect/login"
     
-    # Session timeout (in seconds)
-    SESSION_TIMEOUT = 3600  # 1 hour
+    # Session timeout (in seconds) - Zerodha sessions typically last 24 hours
+    SESSION_TIMEOUT = 86400  # 24 hours
     
     @staticmethod
     def get_accounts() -> List[BrokerConfig]:
@@ -34,13 +33,12 @@ class ZerodhaConfig:
         while True:
             api_key = os.getenv(f'ZERODHA_{i}_API_KEY')
             api_secret = os.getenv(f'ZERODHA_{i}_API_SECRET')
-            totp_secret = os.getenv(f'ZERODHA_{i}_TOTP_SECRET')
             
             if not api_key or not api_secret:
                 break
                 
             account_name = os.getenv(f'ZERODHA_{i}_ACCOUNT_NAME', f'Zerodha Account {i}')
-            accounts.append(BrokerConfig(account_name, api_key, api_secret, totp_secret))
+            accounts.append(BrokerConfig(account_name, api_key, api_secret))
             i += 1
         
         return accounts
@@ -74,12 +72,15 @@ class ICICIConfig:
             api_key = os.getenv(f'ICICI_{i}_API_KEY')
             api_secret = os.getenv(f'ICICI_{i}_API_SECRET')
             totp_secret = os.getenv(f'ICICI_{i}_TOTP_SECRET')
+            user_id = os.getenv(f'ICICI_{i}_USER_ID')
+            password = os.getenv(f'ICICI_{i}_PASSWORD')
+            pin = os.getenv(f'ICICI_{i}_PIN')
             
             if not api_key or not api_secret:
                 break
                 
             account_name = os.getenv(f'ICICI_{i}_ACCOUNT_NAME', f'ICICI Direct Account {i}')
-            accounts.append(BrokerConfig(account_name, api_key, api_secret, totp_secret))
+            accounts.append(BrokerConfig(account_name, api_key, api_secret, totp_secret, user_id, password, pin))
             i += 1
         
         return accounts

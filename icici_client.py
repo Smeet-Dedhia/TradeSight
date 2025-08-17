@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import pandas as pd
 
-from config import BrokerConfig, ICICIConfig
+from myconfig import BrokerConfig, ICICIConfig
 
 
 class ICICIClient:
@@ -16,7 +16,6 @@ class ICICIClient:
         self.account_name = account_config.name
         self.api_key = account_config.api_key
         self.api_secret = account_config.api_secret
-        self.totp_secret = account_config.totp_secret
         self.base_url = ICICIConfig.BASE_URL
         self.session = requests.Session()
         self.access_token = None
