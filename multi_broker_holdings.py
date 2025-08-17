@@ -8,8 +8,10 @@ and processes data consistently across different platforms.
 """
 
 import os
+import json
 import pandas as pd
 from datetime import datetime
+import pytz
 from dotenv import load_dotenv
 from kiteconnect import KiteConnect
 from breeze_connect import BreezeConnect
@@ -216,18 +218,18 @@ def get_broker_accounts():
         accounts.append(BrokerConfig(account_name, api_key, api_secret, 'zerodha'))
         i += 1
     
-            # Get ICICI accounts
-        i = 1
-        while True:
-            api_key = os.getenv(f'ICICI_{i}_API_KEY')
-            api_secret = os.getenv(f'ICICI_{i}_API_SECRET')
+    # Get ICICI accounts
+    i = 1
+    while True:
+        api_key = os.getenv(f'ICICI_{i}_API_KEY')
+        api_secret = os.getenv(f'ICICI_{i}_API_SECRET')
+        
+        if not api_key or not api_secret:
+            break
             
-            if not api_key or not api_secret:
-                break
-                
-            account_name = os.getenv(f'ICICI_{i}_ACCOUNT_NAME', f'ICICI_{i}')
-            accounts.append(BrokerConfig(account_name, api_key, api_secret, 'icici'))
-            i += 1
+        account_name = os.getenv(f'ICICI_{i}_ACCOUNT_NAME', f'ICICI_{i}')
+        accounts.append(BrokerConfig(account_name, api_key, api_secret, 'icici'))
+        i += 1
     
     return accounts
 
@@ -278,70 +280,91 @@ def process_zerodha_holdings(holdings, account_name):
 
 def process_icici_holdings(holdings, account_name):
     """Process ICICI Direct holdings data into a clean DataFrame"""
-    if not holdings:
-        return pd.DataFrame()
-    
-    # Convert to DataFrame
-    df = pd.DataFrame(holdings)
-    
-    # Define the columns we want to keep and their display names
-    # Note: ICICI column names may differ from Zerodha
-    column_mapping = {
-        'stock_code': 'symbol',
-        'quantity': 'quantity',
-        'average_price': 'average_price',
-        'last_price': 'last_price',
-        'pnl': 'pnl',
-        'exchange': 'exchange',
-        'isin': 'isin'
-    }
-    
-    # Select and rename columns (handle missing columns gracefully)
-    available_columns = [col for col in column_mapping.keys() if col in df.columns]
-    df_clean = df[available_columns].copy()
-    df_clean.columns = [column_mapping[col] for col in available_columns]
-    
-    # Add missing columns with default values
-    missing_columns = set(column_mapping.values()) - set(df_clean.columns)
-    for col in missing_columns:
-        if col == 'product':
-            df_clean[col] = 'CNC'  # Default for ICICI
-        elif col in ['investment_value', 'market_value', 'return_percent']:
-            continue  # Will be calculated below
+    try:
+        if not holdings:
+            logger.info("No holdings provided")
+            return pd.DataFrame()
+        
+        # Check if response is successful and contains Success key
+        if isinstance(holdings, dict) and 'Success' in holdings:
+            # Extract the array of rows from response['Success']
+            actual_holdings = holdings['Success']
+            logger.info(f"Found {len(actual_holdings)} holdings in response['Success']")
         else:
-            df_clean[col] = ''
-    
-    # Calculate additional metrics
-    if 'quantity' in df_clean.columns and 'average_price' in df_clean.columns:
-        df_clean['investment_value'] = df_clean['quantity'] * df_clean['average_price']
-    else:
+            # Fallback to direct holdings data
+            actual_holdings = holdings
+            logger.info(f"Using direct holdings data: {len(actual_holdings)} holdings")
+        
+        if not actual_holdings:
+            logger.warning("No holdings data found in ICICI response")
+            return pd.DataFrame()
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(actual_holdings)
+        logger.info(f"DataFrame created with columns: {list(df.columns)}")
+        
+        # Define the columns we want to keep and their display names
+        # Note: ICICI column names may differ from Zerodha
+        column_mapping = {
+            'stock_code': 'symbol',
+            'stock_ISIN': 'isin',
+            'quantity': 'quantity',
+            'demat_total_bulk_quantity': 'total_quantity',
+            'demat_avail_quantity': 'available_quantity',
+            'blocked_quantity': 'blocked_quantity',
+            'demat_allocated_quantity': 'allocated_quantity'
+        }
+        
+        # Select and rename columns (handle missing columns gracefully)
+        available_columns = [col for col in column_mapping.keys() if col in df.columns]
+        df_clean = df[available_columns].copy()
+        df_clean.columns = [column_mapping[col] for col in available_columns]
+        
+        # Add missing columns with default values
+        missing_columns = set(column_mapping.values()) - set(df_clean.columns)
+        for col in missing_columns:
+            if col == 'product':
+                df_clean[col] = 'CNC'  # Default for ICICI
+            elif col in ['investment_value', 'market_value', 'return_percent']:
+                continue  # Will be calculated below
+            else:
+                df_clean[col] = ''
+        
+        # Add default values for missing columns that ICICI doesn't provide
+        df_clean['product'] = 'CNC'  # Default for ICICI
+        df_clean['exchange'] = 'NSE'  # Default exchange
+        df_clean['average_price'] = 0  # ICICI doesn't provide this
+        df_clean['last_price'] = 0    # ICICI doesn't provide this
+        df_clean['pnl'] = 0           # ICICI doesn't provide this
+        
+        # Calculate additional metrics (set to 0 since ICICI doesn't provide price data)
         df_clean['investment_value'] = 0
-    
-    if 'quantity' in df_clean.columns and 'last_price' in df_clean.columns:
-        df_clean['market_value'] = df_clean['quantity'] * df_clean['last_price']
-    else:
         df_clean['market_value'] = 0
-    
-    if 'average_price' in df_clean.columns and 'last_price' in df_clean.columns:
-        df_clean['return_percent'] = ((df_clean['last_price'] - df_clean['average_price']) / df_clean['average_price']) * 100
-    else:
         df_clean['return_percent'] = 0
-    
-    # Round numeric columns
-    numeric_columns = ['average_price', 'last_price', 'pnl', 'investment_value', 'market_value', 'return_percent']
-    df_clean[numeric_columns] = df_clean[numeric_columns].round(2)
-    
-    # Add account information
-    df_clean['account_name'] = account_name
-    df_clean['broker'] = 'ICICI Direct'
-    
-    # Sort by market value (descending)
-    df_clean = df_clean.sort_values('market_value', ascending=False)
-    
-    # Reset index
-    df_clean = df_clean.reset_index(drop=True)
-    
-    return df_clean
+        
+        # Round numeric columns
+        numeric_columns = ['quantity', 'total_quantity', 'available_quantity', 'blocked_quantity', 'allocated_quantity']
+        df_clean[numeric_columns] = df_clean[numeric_columns].round(0)
+        
+        # Add account information
+        df_clean['account_name'] = account_name
+        df_clean['broker'] = 'ICICI Direct'
+        
+        # Sort by market value (descending)
+        df_clean = df_clean.sort_values('market_value', ascending=False)
+        
+        # Reset index
+        df_clean = df_clean.reset_index(drop=True)
+        
+        logger.info(f"Successfully processed ICICI holdings. Final DataFrame shape: {df_clean.shape}")
+        return df_clean
+        
+    except Exception as e:
+        logger.error(f"Error processing ICICI holdings: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise
 
 def create_data_folder():
     """Create /data folder if it doesn't exist"""
@@ -353,8 +376,10 @@ def create_data_folder():
 
 def export_to_csv(df, data_folder, account_name, broker_type):
     """Export DataFrame to CSV file in data folder"""
-    # Create timestamped file (dd-mm-yyyy format)
-    date_str = datetime.now().strftime("%d-%m-%Y")
+    # Create timestamped file using Indian Standard Time (YYYY-MM-DD format for proper sorting)
+    ist = pytz.timezone('Asia/Kolkata')
+    current_time_ist = datetime.now(ist)
+    date_str = current_time_ist.strftime("%Y-%m-%d")
     timestamped_filename = f"{account_name}_{date_str}.csv"
     timestamped_filepath = os.path.join(data_folder, timestamped_filename)
     
@@ -425,7 +450,11 @@ def display_summary(df, account_name, broker_type):
         print(f"   Worst Performer: {worst_performer['symbol']} ({worst_performer['return_percent']:.1f}%)")
 
 def main():
-    """Main function to fetch and export holdings from all broker accounts"""
+    """Main function to fetch and export holdings from all broker accounts
+    
+    Note: All timestamps and file naming use Indian Standard Time (IST)
+    for consistent day-based operations and proper file sorting.
+    """
     try:
         print("🚀 Starting Multi-Broker Holdings Export")
         print("=" * 50)
@@ -500,9 +529,14 @@ def main():
                 print(f"❌ Error processing {account.name}: {str(e)}")
                 continue
         
-        print(f"\n🎉 Multi-broker holdings export completed!")
+        # Get current IST time for completion message
+        ist = pytz.timezone('Asia/Kolkata')
+        current_time_ist = datetime.now(ist)
+        completion_time = current_time_ist.strftime("%Y-%m-%d %H:%M:%S IST")
+        
+        print(f"\n🎉 Multi-broker holdings export completed at {completion_time}!")
         print(f"📁 Check the {data_folder} folder for exported CSV files.")
-        print(f"📅 Each account gets a daily timestamped file and a latest file.")
+        print(f"📅 Each account gets a daily timestamped file (YYYY-MM-DD format) and a latest file.")
         
         # Display token status
         token_manager.display_token_status()

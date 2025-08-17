@@ -10,6 +10,7 @@ daily re-authentication.
 import os
 import json
 from datetime import datetime, timedelta
+import pytz
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,13 +58,17 @@ class TokenManager:
         if key not in self.tokens:
             self.tokens[key] = {}
         
+        # Use IST timezone for consistent day-based token management
+        ist = pytz.timezone('Asia/Kolkata')
+        current_time_ist = datetime.now(ist)
+        
         self.tokens[key].update({
             "broker_type": broker_type,
             "account_name": account_name,
             "token_type": token_type,
             "token": token,
-            "created_at": datetime.now().isoformat(),
-            "last_used": datetime.now().isoformat()
+            "created_at": current_time_ist.isoformat(),
+            "last_used": current_time_ist.isoformat()
         })
         
         self._save_tokens()
@@ -87,8 +92,10 @@ class TokenManager:
             logger.info(f"Token for {account_name} ({broker_type}) has expired")
             return None
         
-        # Update last used timestamp
-        token_data["last_used"] = datetime.now().isoformat()
+        # Update last used timestamp using IST
+        ist = pytz.timezone('Asia/Kolkata')
+        current_time_ist = datetime.now(ist)
+        token_data["last_used"] = current_time_ist.isoformat()
         self._save_tokens()
         
         logger.info(f"Retrieved valid token for {account_name} ({broker_type})")
@@ -100,8 +107,11 @@ class TokenManager:
             return True
         
         try:
+            # Parse the stored timestamp (it's already in IST)
             created_at = datetime.fromisoformat(token_data["created_at"])
-            current_time = datetime.now()
+            # Get current time in IST
+            ist = pytz.timezone('Asia/Kolkata')
+            current_time_ist = datetime.now(ist)
             
             # Different expiration times for different brokers
             if broker_type == "zerodha":
@@ -116,7 +126,7 @@ class TokenManager:
             
             expiration_time = created_at + timedelta(hours=expiration_hours)
             
-            return current_time > expiration_time
+            return current_time_ist > expiration_time
             
         except (ValueError, TypeError) as e:
             logger.warning(f"Error parsing token timestamp: {e}")
@@ -164,7 +174,9 @@ class TokenManager:
         if "created_at" in token_data:
             try:
                 created_at = datetime.fromisoformat(token_data["created_at"])
-                current_time = datetime.now()
+                # Get current time in IST
+                ist = pytz.timezone('Asia/Kolkata')
+                current_time_ist = datetime.now(ist)
                 
                 if broker_type == "zerodha":
                     expiration_hours = 20
@@ -174,7 +186,7 @@ class TokenManager:
                     expiration_hours = 1
                 
                 expiration_time = created_at + timedelta(hours=expiration_hours)
-                time_until_expiry = expiration_time - current_time
+                time_until_expiry = expiration_time - current_time_ist
                 
                 if time_until_expiry.total_seconds() > 0:
                     hours = int(time_until_expiry.total_seconds() // 3600)
