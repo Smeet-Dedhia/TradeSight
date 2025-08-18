@@ -119,7 +119,7 @@ class TokenManager:
                 expiration_hours = 20  # Conservative: 20 hours
             elif broker_type == "icici":
                 # ICICI session tokens typically last 1 hour
-                expiration_hours = 0.8  # Conservative: 48 minutes
+                expiration_hours = 20  # Conservative: 20 hours
             else:
                 # Default: 1 hour
                 expiration_hours = 1
