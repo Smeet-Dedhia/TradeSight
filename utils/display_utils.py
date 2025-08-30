@@ -98,6 +98,65 @@ def display_error_message(account_name: str, error: str):
     """Display error message for account processing"""
     print(f"❌ Error processing {account_name}: {error}")
 
+def display_consolidated_summary(consolidated_df: pd.DataFrame, account_count: int):
+    """Display a summary of the consolidated holdings"""
+    if consolidated_df.empty:
+        print("No consolidated holdings data to display")
+        return
+    
+    print(f"\n" + "="*70)
+    print(f"🔗 CONSOLIDATED HOLDINGS SUMMARY ({account_count} Accounts)")
+    print("="*70)
+    
+    # Basic stats - handle missing columns gracefully
+    total_investment = consolidated_df.get('investment_value', pd.Series([0])).sum()
+    total_market_value = consolidated_df.get('market_value', pd.Series([0])).sum()
+    total_holdings = len(consolidated_df)
+    
+    # Calculate overall return
+    overall_return = ((total_market_value - total_investment) / total_investment) * 100 if total_investment > 0 else 0
+    
+    print(f"Total Holdings: {total_holdings}")
+    print(f"Total Investment: ₹{total_investment:,.2f}")
+    print(f"Current Market Value: ₹{total_market_value:,.2f}")
+    print(f"Overall Return: {overall_return:.2f}%")
+    
+    # Account breakdown
+    if 'account_name' in consolidated_df.columns:
+        account_breakdown = consolidated_df['account_name'].value_counts()
+        print(f"\n👤 Account Breakdown:")
+        for account, count in account_breakdown.items():
+            account_value = consolidated_df[consolidated_df['account_name'] == account].get('market_value', pd.Series([0])).sum()
+            print(f"   {account}: {count} holdings (₹{account_value:,.2f})")
+    
+    # Top 10 holdings by market value
+    if all(col in consolidated_df.columns for col in ['Symbol', 'market_value', 'return_percent']):
+        print(f"\n🏆 Top 10 Holdings by Market Value:")
+        print("-" * 60)
+        for i, (_, row) in enumerate(consolidated_df.head(10).iterrows(), 1):
+            symbol = row.get('Symbol', 'N/A')
+            account = row.get('account_name', 'N/A')
+            market_value = row.get('market_value', 0)
+            return_percent = row.get('return_percent', 0)
+            print(f"{i:2}. {symbol:<12} {account:<15} ₹{market_value:>10,.2f} ({return_percent:>6.1f}%)")
+    
+    # Performance breakdown
+    if 'return_percent' in consolidated_df.columns:
+        profitable = consolidated_df[consolidated_df['return_percent'] > 0]
+        loss_making = consolidated_df[consolidated_df['return_percent'] < 0]
+        
+        print(f"\n📈 Overall Performance:")
+        print(f"   Profitable Holdings: {len(profitable)}")
+        print(f"   Loss Making Holdings: {len(loss_making)}")
+        
+        if not profitable.empty:
+            best_performer = profitable.loc[profitable['return_percent'].idxmax()]
+            print(f"   Best Performer: {best_performer['Symbol']} ({best_performer['account_name']}) +{best_performer['return_percent']:.1f}%")
+        
+        if not loss_making.empty:
+            worst_performer = loss_making.loc[loss_making['return_percent'].idxmin()]
+            print(f"   Worst Performer: {worst_performer['Symbol']} ({worst_performer['account_name']}) {worst_performer['return_percent']:.1f}%")
+
 def display_startup_message():
     """Display startup message"""
     print("🚀 Starting Multi-Broker Holdings Export")

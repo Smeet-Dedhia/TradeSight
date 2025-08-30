@@ -82,15 +82,21 @@ def process_icici_holdings(holdings: List[Dict], account_name: str) -> pd.DataFr
         logger.info(f"DataFrame created with columns: {list(df.columns)}")
         
         # Define the columns we want to keep and their display names
-        # Note: ICICI column names may differ from Zerodha
+        # Based on the new get_portfolio_holdings response structure
         column_mapping = {
             'stock_code': 'symbol',
-            'stock_ISIN': 'isin',
+            'exchange_code': 'exchange',
             'quantity': 'quantity',
-            'demat_total_bulk_quantity': 'total_quantity',
-            'demat_avail_quantity': 'available_quantity',
-            'blocked_quantity': 'blocked_quantity',
-            'demat_allocated_quantity': 'allocated_quantity'
+            'average_price': 'average_price',
+            'booked_profit_loss': 'booked_pnl',
+            'current_market_price': 'last_price',
+            'change_percentage': 'change_percent',
+            'product_type': 'product',
+            'expiry_date': 'expiry_date',
+            'strike_price': 'strike_price',
+            'right': 'right',
+            'unrealized_profit': 'unrealized_pnl',
+            'realized_profit': 'realized_pnl'
         }
         
         # Select and rename columns (handle missing columns gracefully)
@@ -109,20 +115,27 @@ def process_icici_holdings(holdings: List[Dict], account_name: str) -> pd.DataFr
                 df_clean[col] = ''
         
         # Add default values for missing columns that ICICI doesn't provide
-        df_clean['product'] = 'CNC'  # Default for ICICI
-        df_clean['exchange'] = 'NSE'  # Default exchange
-        df_clean['average_price'] = 0  # ICICI doesn't provide this
-        df_clean['last_price'] = 0    # ICICI doesn't provide this
-        df_clean['pnl'] = 0           # ICICI doesn't provide this
+        df_clean['product'] = df_clean['product'].fillna('CNC')  # Default for ICICI
+        df_clean['exchange'] = df_clean['exchange'].fillna('NSE')  # Default exchange
         
-        # Calculate additional metrics (set to 0 since ICICI doesn't provide price data)
-        df_clean['investment_value'] = 0
-        df_clean['market_value'] = 0
-        df_clean['return_percent'] = 0
+        # Calculate additional metrics using the new data structure
+        # Handle potential missing or null values safely
+        try:
+            df_clean['investment_value'] = df_clean['quantity'].astype(float) * df_clean['average_price'].astype(float)
+            df_clean['market_value'] = df_clean['quantity'].astype(float) * df_clean['last_price'].astype(float)
+            df_clean['return_percent'] = df_clean['change_percent'].astype(float)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error calculating metrics, setting to 0: {str(e)}")
+            df_clean['investment_value'] = 0
+            df_clean['market_value'] = 0
+            df_clean['return_percent'] = 0
         
         # Round numeric columns
-        numeric_columns = ['quantity', 'total_quantity', 'available_quantity', 'blocked_quantity', 'allocated_quantity']
-        df_clean[numeric_columns] = df_clean[numeric_columns].round(0)
+        numeric_columns = ['quantity', 'average_price', 'last_price', 'booked_pnl', 'change_percent', 
+                          'unrealized_pnl', 'realized_pnl', 'investment_value', 'market_value', 'return_percent']
+        # Filter to only include columns that exist in the DataFrame
+        existing_numeric_columns = [col for col in numeric_columns if col in df_clean.columns]
+        df_clean[existing_numeric_columns] = df_clean[existing_numeric_columns].round(2)
         
         # Add account information
         df_clean['account_name'] = account_name
@@ -134,7 +147,7 @@ def process_icici_holdings(holdings: List[Dict], account_name: str) -> pd.DataFr
         # Reset index
         df_clean = df_clean.reset_index(drop=True)
         
-        logger.info(f"Successfully processed ICICI holdings. Final DataFrame shape: {df_clean.shape}")
+        logger.info(f"Successfully processed ICICI portfolio holdings. Final DataFrame shape: {df_clean.shape}")
         return df_clean
         
     except Exception as e:

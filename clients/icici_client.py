@@ -38,7 +38,7 @@ class ICICIClient:
                     session_token=session_token
                 )
                 # Test if session is still valid
-                holdings = self.breeze.get_demat_holdings()
+                holdings = self.breeze.get_portfolio_holdings(exchange_code="NSE")
                 logger.info(f"Using stored session token for {self.config.name}")
                 self.authenticated = True
                 return True
@@ -87,7 +87,7 @@ class ICICIClient:
         logger.info(f"Fetching holdings from ICICI Direct account: {self.config.name}")
         
         try:
-            holdings = self.breeze.get_demat_holdings()
+            holdings = self.breeze.get_portfolio_holdings(exchange_code="NSE")
             
             if not holdings:
                 logger.warning(f"No holdings found in {self.config.name}")
