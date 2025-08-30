@@ -136,6 +136,28 @@ if df is not None:
     st.sidebar.write(f"Return Range: {return_range[0]:.1f}% to {return_range[1]:.1f}%")
     st.sidebar.write(f"Stocks: {len(aggregated_df)}")
     
+    # Portfolio Allocation by Account (moved from main dashboard)
+    # st.sidebar.write("**Portfolio Allocation by Account**")
+    
+    # Group by account_name and sum market_value (using filtered data)
+    account_allocation = filtered_df.groupby('account_name')['market_value'].sum().reset_index()
+    
+    fig_account = px.pie(
+        account_allocation,
+        values='market_value',
+        names='account_name',
+        title='Account Allocation (Market Value)'
+    )
+    fig_account.update_traces(textposition='inside', textinfo='percent+label')
+    
+    # Make the chart smaller to fit in sidebar
+    fig_account.update_layout(
+        height=300,
+        margin=dict(l=0, r=0, t=30, b=0)
+    )
+    
+    st.sidebar.plotly_chart(fig_account, use_container_width=True)
+    
     st.header("Portfolio Summary")
     st.write(f"**Total unique stocks:** {len(aggregated_df)}")
     
@@ -232,6 +254,68 @@ if df is not None:
         else:
             st.warning(f"No data found for {selected_stock}")
     
+        # Top & Bottom Performers Analysis
+    st.header("Top & Bottom Performers")
+    
+    # User input for number of stocks to display
+    max_stocks = len(aggregated_df)
+    num_stocks = st.slider(
+        "Number of stocks to display:",
+        min_value=5,
+        max_value=min(max_stocks, 50),  # Cap at 50 for performance
+        value=10,
+        step=5,
+        help="Choose how many top and bottom performers to display in the charts"
+    )
+     
+    # Bar chart of top N performers by return percentage
+    # st.write("**Top Performers by Return %**")
+    
+    top_performers = aggregated_df.nlargest(num_stocks, 'return_percent')
+    
+    fig_top_performers = px.bar(
+        top_performers,
+        x='Symbol',
+        y='return_percent',
+        color='return_percent',
+        color_continuous_scale='greens',
+        title=f'Top {num_stocks} Performers by Return %',
+        labels={'return_percent': 'Return %', 'Symbol': 'Stock Symbol'}
+    )
+    
+    fig_top_performers.update_layout(
+        xaxis_title="Stock Symbol",
+        yaxis_title="Return %",
+        xaxis_tickangle=-45,
+        showlegend=False
+    )
+    
+    st.plotly_chart(fig_top_performers, use_container_width=True)
+    
+    # Bar chart of bottom N performers by return percentage
+    # st.write("**Bottom Performers by Return %**")
+    
+    bottom_performers = aggregated_df.nsmallest(num_stocks, 'return_percent')
+    
+    fig_bottom_performers = px.bar(
+        bottom_performers,
+        x='Symbol',
+        y='return_percent',
+        color='return_percent',
+        color_continuous_scale='reds',
+        title=f'Bottom {num_stocks} Performers by Return %',
+        labels={'return_percent': 'Return %', 'Symbol': 'Stock Symbol'}
+    )
+    
+    fig_bottom_performers.update_layout(
+        xaxis_title="Stock Symbol",
+        yaxis_title="Return %",
+        xaxis_tickangle=-45,
+        showlegend=False
+    )
+    
+    st.plotly_chart(fig_bottom_performers, use_container_width=True)
+    
     # Charts section
     st.header("Visualizations")
     
@@ -239,7 +323,7 @@ if df is not None:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.write("**Portfolio Allocation by Stock**")
+        # st.write("**Portfolio Allocation by Stock**")
         fig_symbol = px.pie(
             aggregated_df, 
             values='market_value', 
@@ -249,42 +333,142 @@ if df is not None:
         fig_symbol.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig_symbol, use_container_width=True)
     
-    # 2. Bar chart of top 10 gainers/losers (sorted by profit_loss)
+    # 2. Concentration Analysis
     with col2:
-        st.write("**Top 10 Gainers/Losers**")
-        # Sort by profit_loss and get top 10
-        top_stocks = aggregated_df.nlargest(10, 'profit_loss')
-        bottom_stocks = aggregated_df.nsmallest(10, 'profit_loss')
+        st.write("**Portfolio Concentration**")
         
-        # Combine and sort for display
-        top_bottom = pd.concat([top_stocks, bottom_stocks]).drop_duplicates()
-        top_bottom = top_bottom.sort_values('profit_loss', ascending=False)
+        # Calculate concentration metrics
+        largest_holding_pct = (aggregated_df['market_value'].max() / total_market_value * 100) if total_market_value > 0 else 0
+        top_5_holdings_pct = (aggregated_df.nlargest(5, 'market_value')['market_value'].sum() / total_market_value * 100) if total_market_value > 0 else 0
         
-        fig_pnl = px.bar(
-            top_bottom,
+        # Display concentration metrics
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Largest Holding %", f"{largest_holding_pct:.2f}%")
+        
+        with col2:
+            st.metric("Top 5 Holdings %", f"{top_5_holdings_pct:.2f}%")
+        
+        # Bar chart of top 10 holdings by market value
+        #st.write("**Top 10 Holdings by Market Value**")
+        top_10_holdings = aggregated_df.nlargest(10, 'market_value')
+        
+        fig_top_holdings = px.bar(
+            top_10_holdings,
             x='Symbol',
-            y='profit_loss',
-            color='profit_loss',
-            color_continuous_scale=['red', 'yellow', 'green'],
-            title='Top Gainers/Losers by P&L'
+            y='market_value',
+            color='market_value',
+            color_continuous_scale='viridis',
+            title='Top 10 Holdings by Market Value',
+            labels={'market_value': 'Market Value (₹)', 'Symbol': 'Stock Symbol'}
         )
-        fig_pnl.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig_pnl, use_container_width=True)
+        
+        fig_top_holdings.update_layout(
+            xaxis_title="Stock Symbol",
+            yaxis_title="Market Value (₹)",
+            xaxis_tickangle=-45,
+            showlegend=False
+        )
+        
+        st.plotly_chart(fig_top_holdings, use_container_width=True)
     
-    # 3. Pie chart of portfolio allocation by account_name (market_value)
-    st.write("**Portfolio Allocation by Account**")
+    # 3. Pie chart of portfolio allocation by account_name (market_value) - MOVED TO SIDEBAR
+    # (Chart moved to sidebar below filters)
     
-    # Group by account_name and sum market_value (using filtered data)
-    account_allocation = filtered_df.groupby('account_name')['market_value'].sum().reset_index()
+    # 4. Histogram of return_percent distribution
+    # st.write("**Return Distribution Across Holdings**")
     
-    fig_account = px.pie(
-        account_allocation,
-        values='market_value',
-        names='account_name',
-        title='Portfolio Allocation by Account (Market Value)'
+    # Calculate portfolio average return for the vertical line
+    portfolio_avg_return = aggregated_df['return_percent'].mean()
+    
+         # Create histogram with 5% bins
+     # Calculate the range and create bins of 5% each
+    min_ret = aggregated_df['return_percent'].min()
+    max_ret = aggregated_df['return_percent'].max()
+    
+    # Create bins with 5% intervals
+    bin_size = 5.0
+    bins = np.arange(min_ret - bin_size/2, max_ret + bin_size, bin_size)
+    
+    fig_hist = px.histogram(
+        aggregated_df,
+        x='return_percent',
+        nbins=len(bins)-1,  # Number of bins based on 5% intervals
+        title='Distribution of Returns Across Holdings (5% Bins)',
+        labels={'return_percent': 'Return %', 'count': 'Number of Holdings'}
     )
-    fig_account.update_traces(textposition='inside', textinfo='percent+label')
-    st.plotly_chart(fig_account, use_container_width=True)
+    
+    # Add borders to histogram bars for better visibility
+    fig_hist.update_traces(
+        marker=dict(
+            line=dict(width=1, color='black')
+        )
+    )
+    
+    # Add vertical line for portfolio average return
+    fig_hist.add_vline(
+        x=portfolio_avg_return,
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"Portfolio Avg: {portfolio_avg_return:.2f}%",
+        annotation_position="top right"
+    )
+    
+    # Update layout for better readability with x-axis ticks every 10%
+    fig_hist.update_layout(
+        xaxis_title="Return %",
+        yaxis_title="Number of Holdings",
+        showlegend=False,
+        xaxis=dict(
+            tickmode='array',
+            tickvals=np.arange(-60, 401, 20),  # Every 10% from -50% to 100%
+            ticktext=[f"{x}%" for x in np.arange(-50, 401, 20)],
+            tickangle=0
+        )
+    )
+    
+    st.plotly_chart(fig_hist, use_container_width=True)
+    
+    # 5. Bubble scatter plot: investment_value vs return_percent
+    # st.write("**Investment Value vs Return Analysis**")
+    
+    # Create bubble scatter plot
+    fig_bubble = px.scatter(
+        aggregated_df,
+        x='investment_value',
+        y='return_percent',
+        size=abs(aggregated_df['profit_loss']),
+        color=aggregated_df['profit_loss'].apply(lambda x: 'Profit' if x >= 0 else 'Loss'),
+        hover_data=['Symbol', 'quantity', 'average_price', 'return_percent'],
+        color_discrete_map={'Profit': 'green', 'Loss': 'red'},
+        title='Investment Value vs Return %', # + '(Bubble Size = |Profit/Loss|, Color = Profit/Loss)',
+        labels={
+            'investment_value': 'Investment Value (₹)',
+            'return_percent': 'Return %',
+            'size': '|Profit/Loss| (₹)',
+            'color': 'Profit/Loss'
+        }
+    )
+    
+    # Update layout for better readability
+    fig_bubble.update_layout(
+        xaxis_title="Investment Value (₹)",
+        yaxis_title="Return %",
+        showlegend=True,
+        legend_title="Profit/Loss"
+    )
+    
+    # Add a horizontal line at y=0 for reference
+    fig_bubble.add_hline(
+        y=0,
+        line_dash="dash",
+        line_color="black",
+        annotation_text="Break-even Line",
+        annotation_position="bottom right"
+    )
+    
+    st.plotly_chart(fig_bubble, use_container_width=True)
     
     # Show original data in expandable section
     with st.expander("View Original Raw Data"):
