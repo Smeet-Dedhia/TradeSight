@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.express as px
+import os
+import glob
+from datetime import datetime
 
 # Set page title
 st.set_page_config(page_title="Family Portfolio Dashboard", layout="wide")
@@ -29,6 +32,62 @@ def load_data():
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return None
+
+# Function to scan CSV files and compute total market value over time
+@st.cache_data
+def load_portfolio_history():
+    """Scan consolidated_holdings folder and compute total market value for each CSV file"""
+    folder_path = "data/consolidated_holdings"
+    history_data = []
+    
+    # Get all CSV files in the folder
+    csv_files = glob.glob(os.path.join(folder_path, "*.csv"))
+    
+    for file_path in csv_files:
+        filename = os.path.basename(file_path)
+        
+        # Skip latest.csv or extract date from filename
+        if filename == "latest.csv":
+            # Use file modification time for latest.csv
+            try:
+                mod_time = os.path.getmtime(file_path)
+                date = datetime.fromtimestamp(mod_time).date()
+            except:
+                continue
+        else:
+            # Extract date from filename (format: YYYY-MM-DD.csv)
+            try:
+                date_str = filename.replace(".csv", "")
+                date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                # Skip files that don't match the date format
+                continue
+        
+        # Read CSV and compute total market value
+        try:
+            df = pd.read_csv(file_path)
+            if 'market_value' in df.columns:
+                total_market_value = df['market_value'].sum()
+                history_data.append({
+                    'date': date,
+                    'total_market_value': total_market_value,
+                    'filename': filename
+                })
+        except Exception as e:
+            # Skip files that can't be read
+            continue
+    
+    if not history_data:
+        return None
+    
+    # Create DataFrame and sort by date
+    history_df = pd.DataFrame(history_data)
+    history_df = history_df.sort_values('date').reset_index(drop=True)
+    
+    # Calculate month for grouping
+    history_df['year_month'] = history_df['date'].apply(lambda x: x.strftime('%Y-%m'))
+    
+    return history_df
 
 # Aggregate data across accounts
 @st.cache_data
@@ -179,6 +238,97 @@ if df is not None:
     with col4:
         overall_return = ((total_market_value - total_investment) / total_investment * 100) if total_investment > 0 else 0
         st.metric("Overall Return %", f"{overall_return:.2f}%")
+    
+    # Portfolio Growth Over Time section
+    st.header("Portfolio Growth Over Time")
+    
+    # Load portfolio history
+    history_df = load_portfolio_history()
+    
+    if history_df is not None and len(history_df) > 0:
+        # Display table
+        st.subheader("Historical Market Value")
+        
+        # Format the display DataFrame
+        display_history = history_df.copy()
+        display_history['Date'] = display_history['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
+        display_history['Total Market Value'] = display_history['total_market_value'].apply(format_indian_currency)
+        display_history['Total Market Value (₹)'] = display_history['total_market_value'].apply(lambda x: f"{x:,.2f}")
+        
+        # Select columns for display
+        table_df = display_history[['Date', 'Total Market Value', 'Total Market Value (₹)', 'filename']].copy()
+        table_df.columns = ['Date', 'Total Market Value', 'Total Market Value (₹)', 'Source File']
+        
+        st.dataframe(table_df, width='stretch', hide_index=True)
+        
+        # Monthly aggregation for chart
+        monthly_df = history_df.groupby('year_month').agg({
+            'total_market_value': 'last',  # Use last value of the month
+            'date': 'last'  # Use last date of the month for x-axis
+        }).reset_index()
+        monthly_df = monthly_df.sort_values('date')
+        
+        # Create line chart
+        st.subheader("Monthly Portfolio Growth Chart")
+        
+        fig_growth = px.line(
+            monthly_df,
+            x='date',
+            y='total_market_value',
+            markers=True,
+            title='Total Market Value Over Time (Monthly)',
+            labels={
+                'date': 'Date',
+                'total_market_value': 'Total Market Value (₹)'
+            }
+        )
+        
+        # Format y-axis to show in lakhs/crores
+        fig_growth.update_layout(
+            xaxis_title="Date",
+            yaxis_title="Total Market Value",
+            hovermode='x unified',
+            yaxis=dict(
+                tickformat=',.0f',
+                tickprefix='₹'
+            )
+        )
+        
+        # Add hover template with formatted currency
+        fig_growth.update_traces(
+            hovertemplate='<b>Date:</b> %{x}<br>' +
+                         '<b>Market Value:</b> %{customdata}<extra></extra>',
+            customdata=[format_indian_currency(val) for val in monthly_df['total_market_value']]
+        )
+        
+        st.plotly_chart(fig_growth, use_container_width=True)
+        
+        # Show growth metrics
+        if len(monthly_df) > 1:
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                first_value = monthly_df['total_market_value'].iloc[0]
+                last_value = monthly_df['total_market_value'].iloc[-1]
+                absolute_growth = last_value - first_value
+                st.metric(
+                    "Absolute Growth",
+                    format_indian_currency(absolute_growth),
+                    delta=f"{((last_value - first_value) / first_value * 100):.2f}%"
+                )
+            
+            with col2:
+                first_date = monthly_df['date'].iloc[0]
+                last_date = monthly_df['date'].iloc[-1]
+                days_diff = (last_date - first_date).days
+                st.metric("Time Period", f"{days_diff} days")
+            
+            with col3:
+                if days_diff > 0:
+                    daily_growth_rate = ((last_value / first_value) ** (1 / (days_diff / 365.25)) - 1) * 100
+                    st.metric("Annualized Growth Rate", f"{daily_growth_rate:.2f}%")
+    else:
+        st.info("No historical data available. Historical CSV files with dates in filename (YYYY-MM-DD.csv) are required.")
     
     # Display the aggregated portfolio table
     st.header("Holdings")

@@ -2,3 +2,6 @@ env/
 logs/
 data/
 __pycache__/
+tokens.json
+auth/tokens.json
+.env
