@@ -5,3 +5,4 @@ __pycache__/
 tokens.json
 auth/tokens.json
 .env
+api_test.ipynb
